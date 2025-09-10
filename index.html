@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Admin Panel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+  <style>
+    :root{--bg:#f4f6fb;--card:#fff;--accent:#4361ee;--danger:#ef4444;--muted:#6b7280}
+    body{font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);margin:0;color:#111}
+    .wrap{max-width:1100px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    header h1{font-size:1.3rem;margin:0}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 20px rgba(16,24,40,.06);margin-bottom:14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left;font-size:13px}
+    th{background:#f8fafc}
+    .btn{padding:8px 12px;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;border:0}
+    .btn-muted{background:#edf2ff;color:var(--accent);border:1px solid rgba(67,97,238,.12)}
+    .small{font-size:12px;padding:6px 8px;border-radius:6px}
+    .top-actions{display:flex;gap:8px;align-items:center}
+    input,textarea{padding:8px;border-radius:8px;border:1px solid #e6eef7;width:100%;box-sizing:border-box}
+    .cols{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+    .hidden{display:none}
+    .status{font-weight:700;padding:8px 12px;border-radius:10px;display:inline-block}
+    .ok{background:rgba(16,185,129,.12);color:#065f46}
+    .err{background:rgba(239,68,68,.12);color:#7f1d1d}
+    footer{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
+    @media(max-width:800px){.cols{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Instapromo — Admin Panel</h1>
+      <div class="top-actions">
+        <div id="currentAdmin" style="font-size:13px;color:var(--muted)"></div>
+        <button id="btn-logout" class="btn btn-muted hidden">Logout</button>
+      </div>
+    </header>
+
+    <!-- AUTH BLOCK -->
+    <div id="authBox" class="card">
+      <h3>Admin Login</h3>
+      <p style="color:var(--muted)">Login allowed only for <b>rudrchauhan877@gmail.com</b></p>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="email" placeholder="admin email"/>
+        <input id="password" type="password" placeholder="password"/>
+        <button id="btnSignIn" class="btn">Sign in</button>
+        <button id="btnGoogle" class="btn btn-muted"><i class="fab fa-google"></i></button>
+      </div>
+      <div style="margin-top:8px">
+        <span id="authStatus" class="status hidden"></span>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h4>Quick Stats</h4>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <div style="flex:1"><div id="statUsers">0</div><div style="color:var(--muted)">Users</div></div>
+            <div style="flex:1"><div id="statSubs">0</div><div style="color:var(--muted)">Submissions</div></div>
+            <div style="flex:1"><div id="statPending">0</div><div style="color:var(--muted)">Pending</div></div>
+            <div style="flex:1"><div id="statBalance">₹0</div><div style="color:var(--muted)">Balance</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h4>Actions</h4>
+          <button id="refreshBtn" class="btn btn-muted">Refresh Data</button>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div class="card">
+          <h4>Submissions</h4>
+          <table id="subsTable"><thead><tr><th>Date</th><th>User</th><th>Type</th><th>Status</th><th>Earn</th><th>Action</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="card">
+          <h4>Withdrawals</h4>
+          <table id="wdTable"><thead><tr><th>Date</th><th>User</th><th>Amount</th><th>Method</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>Users</h4>
+        <table id="usersTable"><thead><tr><th>Name</th><th>Email</th><th>Followers</th><th>Balance</th><th>Action</th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <footer>Admin tools — changes apply immediately.</footer>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script type="module">
+    // ✅ Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBm4VTr__mag1trF4jPZCgqt7gWwBItD58",
+      authDomain: "exchange-a725e.firebaseapp.com",
+      databaseURL: "https://exchange-a725e-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "exchange-a725e",
+      storageBucket: "exchange-a725e.firebasestorage.app",
+      messagingSenderId: "47165517524",
+      appId: "1:47165517524:web:7712aae884de7a498a1541"
+    };
+
+    const ADMIN_EMAIL = "rudrchauhan877@gmail.com";
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+    import { getFirestore, collection, doc, getDocs, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // UI refs
+    const authBox=document.getElementById('authBox');
+    const dashboard=document.getElementById('dashboard');
+    const authStatus=document.getElementById('authStatus');
+    const btnSignIn=document.getElementById('btnSignIn');
+    const btnGoogle=document.getElementById('btnGoogle');
+    const btnLogout=document.getElementById('btn-logout');
+    const currentAdmin=document.getElementById('currentAdmin');
+
+    function showAuth(msg,type){
+      authStatus.className='status '+(type==='err'?'err':'ok');
+      authStatus.textContent=msg;
+      authStatus.classList.remove('hidden');
+      setTimeout(()=>authStatus.classList.add('hidden'),4000);
+    }
+
+    btnSignIn.addEventListener('click',async()=>{
+      const email=document.getElementById('email').value;
+      const pass=document.getElementById('password').value;
+      try{await signInWithEmailAndPassword(auth,email,pass);}catch(e){showAuth("❌ "+e.message,"err");}
+    });
+    btnGoogle.addEventListener('click',async()=>{
+      const provider=new GoogleAuthProvider();
+      try{await signInWithPopup(auth,provider);}catch(e){showAuth("❌ "+e.message,"err");}
+    });
+    btnLogout.addEventListener('click',()=>signOut(auth));
+
+    onAuthStateChanged(auth,user=>{
+      if(user && user.email===ADMIN_EMAIL){
+        authBox.classList.add('hidden');
+        dashboard.classList.remove('hidden');
+        btnLogout.classList.remove('hidden');
+        currentAdmin.textContent="Signed in as "+user.email;
+        loadData();
+      }else{
+        authBox.classList.remove('hidden');
+        dashboard.classList.add('hidden');
+        btnLogout.classList.add('hidden');
+        currentAdmin.textContent="";
+      }
+    });
+
+    // Load dashboard data
+    async function loadData(){
+      // stats
+      const usersSnap=await getDocs(collection(db,'users'));
+      document.getElementById('statUsers').textContent=usersSnap.size;
+      let totalBal=0;
+      usersSnap.forEach(u=>{totalBal+=(u.data().balance||0)});
+      document.getElementById('statBalance').textContent="₹"+totalBal;
+
+      // submissions
+      onSnapshot(collection(db,'submissions'),snap=>{
+        const body=document.querySelector('#subsTable tbody');
+        body.innerHTML='';
+        snap.forEach(docSnap=>{
+          const d=docSnap.data();
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td>${d.createdAt?.toDate?d.createdAt.toDate().toLocaleDateString():""}</td>
+                        <td>${d.userName||"—"}</td>
+                        <td>${d.type||"—"}</td>
+                        <td>${d.status||"Pending"}</td>
+                        <td>₹${d.earnings||0}</td>
+                        <td><button class="small" onclick="approve('${docSnap.id}')">Approve</button>
+                            <button class="small" onclick="reject('${docSnap.id}')">Reject</button></td>`;
+          body.appendChild(tr);
+        });
+      });
+
+      // withdrawals
+      onSnapshot(collection(db,'withdrawals'),snap=>{
+        const body=document.querySelector('#wdTable tbody');
+        body.innerHTML='';
+        snap.forEach(docSnap=>{
+          const d=docSnap.data();
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td>${d.requestAt?.toDate?d.requestAt.toDate().toLocaleDateString():""}</td>
+                        <td>${d.userName||"—"}</td>
+                        <td>₹${d.amount||0}</td>
+                        <td>${d.method||"—"}</td>
+                        <td>${d.status||"Pending"}</td>
+                        <td><button class="small" onclick="markPaid('${docSnap.id}')">Mark Paid</button>
+                            <button class="small" onclick="markRejected('${docSnap.id}')">Reject</button></td>`;
+          body.appendChild(tr);
+        });
+      });
+
+      // users
+      onSnapshot(collection(db,'users'),snap=>{
+        const body=document.querySelector('#usersTable tbody');
+        body.innerHTML='';
+        snap.forEach(docSnap=>{
+          const d=docSnap.data();
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td>${d.name||"—"}</td>
+                        <td>${d.email||"—"}</td>
+                        <td>${d.followers||0}</td>
+                        <td>₹${d.balance||0}</td>
+                        <td><button class="small" onclick="resetBalance('${docSnap.id}')">Zero</button></td>`;
+          body.appendChild(tr);
+        });
+      });
+    }
+
+    // action handlers
+    window.approve=async(id)=>{await updateDoc(doc(db,'submissions',id),{status:"Approved",reviewedAt:serverTimestamp()});}
+    window.reject=async(id)=>{await updateDoc(doc(db,'submissions',id),{status:"Rejected",reviewedAt:serverTimestamp()});}
+    window.markPaid=async(id)=>{await updateDoc(doc(db,'withdrawals',id),{status:"Paid",processedAt:serverTimestamp()});}
+    window.markRejected=async(id)=>{await updateDoc(doc(db,'withdrawals',id),{status:"Rejected",processedAt:serverTimestamp()});}
+    window.resetBalance=async(uid)=>{await updateDoc(doc(db,'users',uid),{balance:0});}
+  </script>
+</body>
+</html>
